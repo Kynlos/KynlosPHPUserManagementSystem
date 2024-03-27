@@ -1,0 +1,92 @@
+# User Guide
+
+Welcome to the User Guide for the PHP User Management System. This guide will provide detailed instructions on how to use the system's features and functionalities.
+
+## Table of Contents
+
+1. [Getting Started](#getting-started)
+2. [Registration](#registration)
+3. [Login](#login)
+4. [Profile Management](#profile-management)
+5. [Password Reset](#password-reset)
+6. [Admin Panel](#admin-panel)
+7. [GitHub Login](#github-login)
+
+## 1. Getting Started <a name="getting-started"></a>
+
+### Accessing the Application
+
+To access the PHP User Management System, follow these steps:
+
+1. Open a web browser on your device.
+2. Enter the URL provided by your administrator into the address bar.
+3. Press Enter to navigate to the application.
+
+## 2. Registration <a name="registration"></a>
+
+### Creating a New Account
+
+To register a new account with the system, use the following steps:
+
+1. Click on the "Register" link provided on the login page.
+2. You will be directed to the registration form.
+3. Fill in the required fields, including username, email, and password.
+4. Optionally, provide your first name and last name.
+5. Click the "Register" button to create your account.
+
+## 3. Login <a name="login"></a>
+
+### Accessing Your Account
+
+To log in to your existing account, follow these steps:
+
+1. Navigate to the login page by clicking on the "Login" link.
+2. Enter your username and password into the respective input fields.
+3. Click the "Login" button to authenticate and access your account.
+
+## 4. Profile Management <a name="profile-management"></a>
+
+### Viewing and Updating Profile Information
+
+After logging in, you can manage your profile using the following steps:
+
+1. Navigate to the "Profile" page within the application.
+2. Here, you can view your current profile information, including username, email, first name, last name, and avatar.
+3. To update your profile, make changes to the desired fields.
+4. Click the "Save Changes" button to apply the updates to your profile.
+
+## 5. Password Reset <a name="password-reset"></a>
+
+### Resetting Your Password
+
+If you forget your password and need to reset it, use the following steps:
+
+1. Click on the "Forgot Password" link on the login page.
+2. Enter your registered email address into the provided field.
+3. A password reset link will be sent to your email address.
+4. Click on the link within the email to reset your password.
+5. Follow the on-screen instructions to set a new password for your account.
+
+## 6. Admin Panel <a name="admin-panel"></a>
+
+### Managing Users and Roles
+
+If you have administrative privileges, you can access the admin panel to manage users and roles:
+
+1. Log in to your account using your administrator credentials.
+2. Navigate to the admin panel using the provided link or menu option.
+3. Within the admin panel, you can perform various actions, including creating, editing, and deleting user accounts.
+4. You can also manage user roles and permissions to control access levels within the system.
+
+## 7. GitHub Login <a name="github-login"></a>
+
+### Logging in with GitHub
+
+To log in to the system using your GitHub account, follow these steps:
+
+1. Click on the "Login with GitHub" button on the login page.
+2. You will be redirected to GitHub's authentication page.
+3. Log in to your GitHub account if prompted.
+4. Authorize the PHP User Management System to access your GitHub account.
+5. Once authenticated, you will be redirected back to the system and logged in automatically.
+
