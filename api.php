@@ -725,3 +725,4 @@ foreach ($routes[$method] as $route => $function) {
 
 header('HTTP/1.1 404 Not Found');
 echo json_encode(['error' => 'Page not found']);
+?>
