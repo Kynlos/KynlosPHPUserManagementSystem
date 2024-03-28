@@ -16,7 +16,7 @@ This is a PHP-based user management system that allows for user registration, lo
 1. Clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/yourusername/php-user-management.git
+git clone https://github.com/Kynlos/KynlosPHPUserManagementSystem.git
 ```
 
 2. Install dependencies using Composer:
