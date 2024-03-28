@@ -725,8 +725,15 @@ function sendPasswordResetEmail($email, $resetLink) {
         // Content
         $mail->isHTML(true);
         $mail->Subject = 'Password Reset';
+        
+        // Sanitize the reset link
         $resetLink = filter_var($resetLink, FILTER_SANITIZE_URL);
-        $mail->Body = 'Click the following link to reset your password: <a href="' . htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8') . '">Reset Password</a>';
+        
+        // Build the email body
+        $emailBody = 'Click the following link to reset your password: <a href="' . htmlspecialchars($resetLink, ENT_QUOTES, 'UTF-8') . '">Reset Password</a>';
+        
+        // Set the email body
+        $mail->Body = $emailBody;
 
         $mail->send();
         return true;
@@ -734,6 +741,7 @@ function sendPasswordResetEmail($email, $resetLink) {
         return false;
     }
 }
+
 
 
 function sendInvitationEmail($email, $password) {
