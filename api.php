@@ -460,7 +460,8 @@ function requestPasswordReset() {
         $stmt->bindValue(':expirationTime', $expirationTime->format('Y-m-d H:i:s'), SQLITE3_TEXT);
         $stmt->execute();
 
-        $resetLink = "http://{$_SERVER['HTTP_HOST']}/reset-password?token=$token";
+        $resetLink = "http://{$_SERVER['HTTP_HOST']}/reset-password?token=" . urlencode($token);
+        $resetLink = filter_var($resetLink, FILTER_SANITIZE_URL);
         sendPasswordResetEmail($email, $resetLink);
 
         header('Content-Type: application/json');
