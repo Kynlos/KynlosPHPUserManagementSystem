@@ -1,4 +1,5 @@
 <?php
+
 // Database connection
 $db = new SQLite3('database.db');
 
@@ -6,7 +7,7 @@ $db = new SQLite3('database.db');
 $db->exec("CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
-    password TEXT,
+    password TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     first_name TEXT,
     last_name TEXT,
@@ -42,16 +43,6 @@ $db->exec("CREATE TABLE IF NOT EXISTS activity_logs (
     action TEXT NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
-)");
-
-$db->exec("CREATE TABLE IF NOT EXISTS email_settings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    smtp_host TEXT NOT NULL,
-    smtp_port INTEGER NOT NULL,
-    smtp_username TEXT,
-    smtp_password TEXT,
-    from_email TEXT NOT NULL,
-    from_name TEXT NOT NULL
 )");
 
 $db->exec("CREATE TABLE IF NOT EXISTS password_resets (
@@ -126,8 +117,8 @@ $routes = [
 ];
 
 // GitHub OAuth configuration
-$githubClientId = 'YOUR_GITHUB_CLIENT_ID';
-$githubClientSecret = 'YOUR_GITHUB_CLIENT_SECRET';
+$githubClientId = getenv('GITHUB_CLIENT_ID');
+$githubClientSecret = getenv('GITHUB_CLIENT_SECRET');
 
 // User authentication
 session_start();
@@ -140,35 +131,41 @@ function isLoggedIn() {
 function isAdmin() {
     global $db;
     $userId = $_SESSION['user_id'];
-    $query = "SELECT r.name AS role_name
-              FROM users u
-              JOIN roles r ON u.role_id = r.id
-              WHERE u.id = $userId";
-    $result = $db->query($query);
-    $row = $result->fetchArray();
+    $stmt = $db->prepare("SELECT r.name AS role_name
+                          FROM users u
+                          JOIN roles r ON u.role_id = r.id
+                          WHERE u.id = :userId");
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
     return $row['role_name'] == 'admin';
 }
 
 function hasPermission($permissionName) {
     global $db;
     $userId = $_SESSION['user_id'];
-    $query = "SELECT EXISTS(
-                SELECT 1
-                FROM role_permissions rp
-                JOIN permissions p ON rp.permission_id = p.id
-                JOIN roles r ON rp.role_id = r.id
-                JOIN users u ON u.role_id = r.id
-                WHERE u.id = $userId AND p.name = '$permissionName'
-              )";
-    $result = $db->querySingle($query);
-    return $result == 1;
+    $stmt = $db->prepare("SELECT EXISTS(
+                            SELECT 1
+                            FROM role_permissions rp
+                            JOIN permissions p ON rp.permission_id = p.id
+                            JOIN roles r ON rp.role_id = r.id
+                            JOIN users u ON u.role_id = r.id
+                            WHERE u.id = :userId AND p.name = :permissionName
+                          )");
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $stmt->bindValue(':permissionName', $permissionName, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_NUM);
+    return $row[0] == 1;
 }
 
 function logActivity($action) {
     global $db;
     $userId = $_SESSION['user_id'];
-    $query = "INSERT INTO activity_logs (user_id, action) VALUES ($userId, '$action')";
-    $db->exec($query);
+    $stmt = $db->prepare("INSERT INTO activity_logs (user_id, action) VALUES (:userId, :action)");
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $stmt->bindValue(':action', $action, SQLITE3_TEXT);
+    $stmt->execute();
 }
 
 // API functions
@@ -180,12 +177,12 @@ function getUsers() {
     }
 
     global $db;
-    $query = "SELECT id, username, email, first_name, last_name, avatar, r.name AS role_name
-              FROM users u
-              JOIN roles r ON u.role_id = r.id";
-    $result = $db->query($query);
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, avatar, r.name AS role_name
+                          FROM users u
+                          JOIN roles r ON u.role_id = r.id");
+    $result = $stmt->execute();
     $users = [];
-    while ($row = $result->fetchArray()) {
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $users[] = $row;
     }
     header('Content-Type: application/json');
@@ -200,24 +197,30 @@ function getUserById($id) {
     }
 
     global $db;
-    $query = "SELECT id, username, email, first_name, last_name, avatar, r.name AS role_name
-              FROM users u
-              JOIN roles r ON u.role_id = r.id
-              WHERE u.id = $id";
-    $result = $db->querySingle($query, true);
+    $stmt = $db->prepare("SELECT id, username, email, first_name, last_name, avatar, r.name AS role_name
+                          FROM users u
+                          JOIN roles r ON u.role_id = r.id
+                          WHERE u.id = :id");
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
     header('Content-Type: application/json');
-    echo json_encode($result);
+    echo json_encode($row);
 }
 
-function registerUser() {
+function registerUser($data) {
     global $db;
-    $data = json_decode(file_get_contents('php://input'), true);
     $username = $data['username'];
     $password = password_hash($data['password'], PASSWORD_DEFAULT);
     $email = $data['email'];
-    $roleId = (int) $db->querySingle("SELECT id FROM roles WHERE name = 'user'");
-    $query = "INSERT INTO users (username, password, email, role_id) VALUES ('$username', '$password', '$email', $roleId)";
-    $db->exec($query);
+    $roleId = (int) ($data['role_id'] ?: 3); // Default to 'user' role
+
+    $stmt = $db->prepare("INSERT INTO users (username, password, email, role_id) VALUES (:username, :password, :email, :roleId)");
+    $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+    $stmt->bindValue(':password', $password, SQLITE3_TEXT);
+    $stmt->bindValue(':email', $email, SQLITE3_TEXT);
+    $stmt->bindValue(':roleId', $roleId, SQLITE3_INTEGER);
+    $stmt->execute();
     logActivity('User registered');
     header('Content-Type: application/json');
     echo json_encode(['message' => 'User registered successfully']);
@@ -227,13 +230,15 @@ function loginUser() {
     global $db;
     $data = json_decode(file_get_contents('php://input'), true);
     $username = $data['username'];
-    $query = "SELECT id, password, 2fa_secret FROM users WHERE username = '$username'";
-    $result = $db->querySingle($query, true);
-    if ($result && password_verify($data['password'], $result['password'])) {
-        if (!empty($result['2fa_secret'])) {
+    $stmt = $db->prepare("SELECT id, password, 2fa_secret FROM users WHERE username = :username");
+    $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
+    if ($row && password_verify($data['password'], $row['password'])) {
+        if (!empty($row['2fa_secret'])) {
             // 2FA is enabled, verify the code
             $code = $data['code'];
-            $secret = $result['2fa_secret'];
+            $secret = $row['2fa_secret'];
             $valid = verifyTOTP($secret, $code);
             if (!$valid) {
                 header('HTTP/1.1 401 Unauthorized');
@@ -241,7 +246,7 @@ function loginUser() {
                 return;
             }
         }
-        $_SESSION['user_id'] = $result['id'];
+        $_SESSION['user_id'] = $row['id'];
         logActivity('User logged in');
         header('Content-Type: application/json');
         echo json_encode(['message' => 'Login successful']);
@@ -252,28 +257,44 @@ function loginUser() {
 }
 
 function loginWithGitHub() {
-    global $githubClientId, $githubClientSecret;
     $code = $_GET['code'];
+    
+    // Validate the code parameter
+    if (empty($code) || !isValidAuthorizationCode($code)) {
+        header('HTTP/1.1 400 Bad Request');
+        echo json_encode(['error' => 'Invalid authorization code']);
+        return;
+    }
+
+    global $githubClientId, $githubClientSecret;
     $accessToken = getGitHubAccessToken($code, $githubClientId, $githubClientSecret);
     $userInfo = getGitHubUserInfo($accessToken);
 
     global $db;
     $githubId = $userInfo->id;
-    $query = "SELECT id FROM users WHERE github_id = '$githubId'";
-    $result = $db->querySingle($query, true);
+    $stmt = $db->prepare("SELECT id FROM users WHERE github_id = :githubId");
+    $stmt->bindValue(':githubId', $githubId, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
 
-    if ($result) {
+    if ($row) {
         // User already exists, log them in
-        $_SESSION['user_id'] = $result['id'];
+        $_SESSION['user_id'] = $row['id'];
         logActivity('User logged in with GitHub');
         header('Location: /dashboard');
     } else {
         // User doesn't exist, create a new account
-        $username = $userInfo->login;
-        $email = $userInfo->email;
-        $roleId = (int) $db->querySingle("SELECT id FROM roles WHERE name = 'user'");
-        $query = "INSERT INTO users (username, email, github_id, role_id) VALUES ('$username', '$email', '$githubId', $roleId)";
-        $db->exec($query);
+        $username = $userInfo->login ?: 'github_' . $userInfo->id;
+        $email = $userInfo->email ?: 'github_' . $userInfo->id . '@example.com';
+        $stmt = $db->prepare("SELECT id FROM roles WHERE name = 'user'");
+        $result = $stmt->execute();
+        $roleId = $result->fetchArray(SQLITE3_NUM)[0];
+        $stmt = $db->prepare("INSERT INTO users (username, email, github_id, role_id) VALUES (:username, :email, :githubId, :roleId)");
+        $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+        $stmt->bindValue(':email', $email, SQLITE3_TEXT);
+        $stmt->bindValue(':githubId', $githubId, SQLITE3_TEXT);
+        $stmt->bindValue(':roleId', $roleId, SQLITE3_INTEGER);
+        $stmt->execute();
         $userId = $db->lastInsertRowID();
         $_SESSION['user_id'] = $userId;
         logActivity('User registered with GitHub');
@@ -314,12 +335,14 @@ function getUserProfile() {
 
     global $db;
     $userId = $_SESSION['user_id'];
-    $query = "SELECT username, email, first_name, last_name, avatar
-              FROM users
-              WHERE id = $userId";
-    $result = $db->querySingle($query, true);
+    $stmt = $db->prepare("SELECT username, email, first_name, last_name, avatar
+                          FROM users
+                          WHERE id = :userId");
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
     header('Content-Type: application/json');
-    echo json_encode($result);
+    echo json_encode($row);
 }
 
 function getActivityLogs() {
@@ -330,13 +353,13 @@ function getActivityLogs() {
     }
 
     global $db;
-    $query = "SELECT al.id, u.username, al.action, al.timestamp
-              FROM activity_logs al
-              JOIN users u ON al.user_id = u.id
-              ORDER BY al.timestamp DESC";
-    $result = $db->query($query);
+    $stmt = $db->prepare("SELECT al.id, u.username, al.action, al.timestamp
+                          FROM activity_logs al
+                          JOIN users u ON al.user_id = u.id
+                          ORDER BY al.timestamp DESC");
+    $result = $stmt->execute();
     $logs = [];
-    while ($row = $result->fetchArray()) {
+    while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
         $logs[] = $row;
     }
     header('Content-Type: application/json');
@@ -353,14 +376,18 @@ function updateUserProfile() {
     global $db;
     $userId = $_SESSION['user_id'];
     $data = json_decode(file_get_contents('php://input'), true);
-    $firstName = $data['first_name'];
-    $lastName = $data['last_name'];
-    $avatar = $data['avatar'];
+    $firstName = filter_var($data['first_name'], FILTER_SANITIZE_STRING);
+    $lastName = filter_var($data['last_name'], FILTER_SANITIZE_STRING);
+    $avatar = filter_var($data['avatar'], FILTER_SANITIZE_URL);
 
-    $query = "UPDATE users
-              SET first_name = '$firstName', last_name = '$lastName', avatar = '$avatar'
-              WHERE id = $userId";
-    $db->exec($query);
+    $stmt = $db->prepare("UPDATE users
+                          SET first_name = :firstName, last_name = :lastName, avatar = :avatar
+                          WHERE id = :userId");
+    $stmt->bindValue(':firstName', $firstName, SQLITE3_TEXT);
+    $stmt->bindValue(':lastName', $lastName, SQLITE3_TEXT);
+    $stmt->bindValue(':avatar', $avatar, SQLITE3_TEXT);
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $stmt->execute();
     logActivity('User updated profile');
     header('Content-Type: application/json');
     echo json_encode(['message' => 'Profile updated successfully']);
@@ -375,14 +402,21 @@ function updateUser($id) {
 
     global $db;
     $data = json_decode(file_get_contents('php://input'), true);
-    $username = $data['username'];
-    $email = $data['email'];
-    $roleId = (int) $db->querySingle("SELECT id FROM roles WHERE name = '$data[role]'");
+    $username = filter_var($data['username'], FILTER_SANITIZE_STRING);
+    $email = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
+    $stmt = $db->prepare("SELECT id FROM roles WHERE name = :roleName");
+    $stmt->bindValue(':roleName', $data['role'], SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $roleId = $result->fetchArray(SQLITE3_NUM)[0];
 
-    $query = "UPDATE users
-              SET username = '$username', email = '$email', role_id = $roleId
-              WHERE id = $id";
-    $db->exec($query);
+    $stmt = $db->prepare("UPDATE users
+                          SET username = :username, email = :email, role_id = :roleId
+                          WHERE id = :id");
+    $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+    $stmt->bindValue(':email', $email, SQLITE3_TEXT);
+    $stmt->bindValue(':roleId', $roleId, SQLITE3_INTEGER);
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt->execute();
     logActivity("User updated (ID: $id)");
     header('Content-Type: application/json');
     echo json_encode(['message' => 'User updated successfully']);
@@ -396,8 +430,9 @@ function deleteUser($id) {
     }
 
     global $db;
-    $query = "DELETE FROM users WHERE id = $id";
-    $db->exec($query);
+    $stmt = $db->prepare("DELETE FROM users WHERE id = :id");
+    $stmt->bindValue(':id', $id, SQLITE3_INTEGER);
+    $stmt->execute();
     logActivity("User deleted (ID: $id)");
     header('Content-Type: application/json');
     echo json_encode(['message' => 'User deleted successfully']);
@@ -406,19 +441,24 @@ function deleteUser($id) {
 function requestPasswordReset() {
     global $db;
     $data = json_decode(file_get_contents('php://input'), true);
-    $email = $data['email'];
+    $email = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
 
-    $query = "SELECT id FROM users WHERE email = '$email'";
-    $result = $db->querySingle($query, true);
+    $stmt = $db->prepare("SELECT id FROM users WHERE email = :email");
+    $stmt->bindValue(':email', $email, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
 
-    if ($result) {
-        $userId = $result['id'];
+    if ($row) {
+        $userId = $row['id'];
         $token = bin2hex(random_bytes(16));
         $expirationTime = new DateTime('+ 1 hour');
 
-        $query = "INSERT INTO password_resets (user_id, token, expiration)
-                  VALUES ($userId, '$token', '$expirationTime->format('Y-m-d H:i:s')')";
-        $db->exec($query);
+        $stmt = $db->prepare("INSERT INTO password_resets (user_id, token, expiration)
+                              VALUES (:userId, :token, :expirationTime)");
+        $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+        $stmt->bindValue(':token', $token, SQLITE3_TEXT);
+        $stmt->bindValue(':expirationTime', $expirationTime->format('Y-m-d H:i:s'), SQLITE3_TEXT);
+        $stmt->execute();
 
         $resetLink = "http://{$_SERVER['HTTP_HOST']}/reset-password?token=$token";
         sendPasswordResetEmail($email, $resetLink);
@@ -431,43 +471,56 @@ function requestPasswordReset() {
     }
 }
 
+
 function resetPassword() {
     global $db;
     $data = json_decode(file_get_contents('php://input'), true);
-    $token = $data['token'];
-    $newPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+    $token = filter_var($data['token'], FILTER_SANITIZE_STRING);
 
-    $query = "SELECT user_id, expiration
-              FROM password_resets
-              WHERE token = '$token'";
-    $result = $db->querySingle($query, true);
+    // Validate the token parameter
+    $stmt = $db->prepare("SELECT user_id, expiration
+                          FROM password_resets
+                          WHERE token = :token");
+    $stmt->bindValue(':token', $token, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
 
-    if ($result) {
-        $userId = $result['user_id'];
-        $expiration = new DateTime($result['expiration']);
-        $now = new DateTime();
-
-        if ($now > $expiration) {
-            header('HTTP/1.1 400 Bad Request');
-            echo json_encode(['error' => 'Token expired']);
-            return;
-        }
-
-        $query = "UPDATE users
-                  SET password = '$newPassword'
-                  WHERE id = $userId";
-        $db->exec($query);
-
-        $query = "DELETE FROM password_resets WHERE token = '$token'";
-        $db->exec($query);
-
-        logActivity("User reset password (ID: $userId)");
-        header('Content-Type: application/json');
-        echo json_encode(['message' => 'Password reset successful']);
-    } else {
+    if (!$row) {
         header('HTTP/1.1 404 Not Found');
         echo json_encode(['error' => 'Invalid token']);
+        return;
     }
+
+    $userId = $row['user_id'];
+    $expiration = new DateTime($row['expiration']);
+    $now = new DateTime();
+
+    if ($now > $expiration) {
+        header('HTTP/1.1 400 Bad Request');
+        echo json_encode(['error' => 'Token expired']);
+        return;
+    }
+
+    if ($newPassword !== $confirmPassword) {
+        header('HTTP/1.1 400 Bad Request');
+        echo json_encode(['error' => 'Passwords do not match']);
+        return;
+    }
+
+    $stmt = $db->prepare("UPDATE users
+                              SET password = :newPassword
+                              WHERE id = :userId");
+    $stmt->bindValue(':newPassword', $newPassword, SQLITE3_TEXT);
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $stmt->execute();
+
+    $stmt = $db->prepare("DELETE FROM password_resets WHERE token = :token");
+    $stmt->bindValue(':token', $token, SQLITE3_TEXT);
+    $stmt->execute();
+
+    logActivity("User reset password (ID: $userId)");
+    header('Content-Type: application/json');
+    echo json_encode(['message' => 'Password reset successful']);
 }
 
 function setup2FA() {
@@ -481,10 +534,12 @@ function setup2FA() {
     $userId = $_SESSION['user_id'];
     $secret = generateTOTPSecret();
 
-    $query = "UPDATE users
-              SET 2fa_secret = '$secret'
-              WHERE id = $userId";
-    $db->exec($query);
+    $stmt = $db->prepare("UPDATE users
+                          SET 2fa_secret = :secret
+                          WHERE id = :userId");
+    $stmt->bindValue(':secret', $secret, SQLITE3_TEXT);
+    $stmt->bindValue(':userId', $userId, SQLITE3_INTEGER);
+    $stmt->execute();
 
     $qrCodeUrl = getTOTPQRCodeURL('My App', $secret, $userId);
 
@@ -502,14 +557,20 @@ function inviteUser() {
 
     global $db;
     $data = json_decode(file_get_contents('php://input'), true);
-    $email = $data['email'];
-    $roleId = (int) $db->querySingle("SELECT id FROM roles WHERE name = '$data[role]'");
+    $email = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
+    $stmt = $db->prepare("SELECT id FROM roles WHERE name = :roleName");
+    $stmt->bindValue(':roleName', $data['role'], SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $roleId = $result->fetchArray(SQLITE3_NUM)[0];
     $password = generateRandomPassword();
     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-    $query = "INSERT INTO users (email, password, role_id)
-              VALUES ('$email', '$hashedPassword', $roleId)";
-    $db->exec($query);
+    $stmt = $db->prepare("INSERT INTO users (email, password, role_id)
+                          VALUES (:email, :password, :roleId)");
+    $stmt->bindValue(':email', $email, SQLITE3_TEXT);
+    $stmt->bindValue(':password', $hashedPassword, SQLITE3_TEXT);
+    $stmt->bindValue(':roleId', $roleId, SQLITE3_INTEGER);
+    $stmt->execute();
     $userId = $db->lastInsertRowID();
 
     sendInvitationEmail($email, $password);
@@ -567,7 +628,6 @@ function getGitHubUserInfo($accessToken) {
     return json_decode($response);
 }
 
-
 // Page rendering functions
 function showLoginPage() {
     $githubLoginUrl = 'https://github.com/login/oauth/authorize?client_id=' . $GLOBALS['githubClientId'];
@@ -592,7 +652,7 @@ function showForgotPasswordPage() {
 }
 
 function showResetPasswordPage() {
-    $token = $_GET['token'];
+    $token = filter_input(INPUT_GET, 'token', FILTER_SANITIZE_STRING);
     include 'reset-password.php';
 }
 
@@ -637,7 +697,6 @@ function getTOTPQRCodeURL($issuer, $secret, $userId) {
     return $ga->getQRCodeGoogleUrl('My App User', $secret, $userId);
 }
 
-
 /*composer require phpmailer/phpmailer*/
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -648,21 +707,21 @@ require 'vendor/autoload.php';
 function sendPasswordResetEmail($email, $resetLink) {
     $mail = new PHPMailer(true);
     try {
-        //Server settings
+        // Server settings
         $mail->isSMTP();
-        $mail->Host = 'smtp.example.com'; // SMTP server address
+        $mail->Host = getenv('SMTP_HOST');
         $mail->SMTPAuth = true;
-        $mail->Username = 'your_smtp_username'; // SMTP username
-        $mail->Password = 'your_smtp_password'; // SMTP password
+        $mail->Username = getenv('SMTP_USERNAME');
+        $mail->Password = getenv('SMTP_PASSWORD');
         $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
+        $mail->Port = getenv('SMTP_PORT');
 
-        //Recipients
-        $mail->setFrom('from@example.com', 'Your Name');
-        $mail->addAddress($email); // Add a recipient
+        // Recipients
+        $mail->setFrom(getenv('FROM_EMAIL'), getenv('FROM_NAME'));
+        $mail->addAddress($email);
 
-        //Content
-        $mail->isHTML(true); // Set email format to HTML
+        // Content
+        $mail->isHTML(true);
         $mail->Subject = 'Password Reset';
         $mail->Body    = 'Click the following link to reset your password: <a href="' . $resetLink . '">Reset Password</a>';
 
@@ -676,21 +735,21 @@ function sendPasswordResetEmail($email, $resetLink) {
 function sendInvitationEmail($email, $password) {
     $mail = new PHPMailer(true);
     try {
-        //Server settings
+        // Server settings
         $mail->isSMTP();
-        $mail->Host = 'smtp.example.com'; // SMTP server address
+        $mail->Host = getenv('SMTP_HOST');
         $mail->SMTPAuth = true;
-        $mail->Username = 'your_smtp_username'; // SMTP username
-        $mail->Password = 'your_smtp_password'; // SMTP password
+        $mail->Username = getenv('SMTP_USERNAME');
+        $mail->Password = getenv('SMTP_PASSWORD');
         $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
+        $mail->Port = getenv('SMTP_PORT');
 
-        //Recipients
-        $mail->setFrom('from@example.com', 'Your Name');
-        $mail->addAddress($email); // Add a recipient
+        // Recipients
+        $mail->setFrom(getenv('FROM_EMAIL'), getenv('FROM_NAME'));
+        $mail->addAddress($email);
 
-        //Content
-        $mail->isHTML(true); // Set email format to HTML
+        // Content
+        $mail->isHTML(true);
         $mail->Subject = 'Invitation to Your App';
         $mail->Body    = 'Welcome! Your password is: ' . $password;
 
@@ -700,7 +759,6 @@ function sendInvitationEmail($email, $password) {
         return false;
     }
 }
-
 
 function generateRandomPassword($length = 12) {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
@@ -725,4 +783,5 @@ foreach ($routes[$method] as $route => $function) {
 
 header('HTTP/1.1 404 Not Found');
 echo json_encode(['error' => 'Page not found']);
+
 ?>
