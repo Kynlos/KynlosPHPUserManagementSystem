@@ -1,4 +1,4 @@
-## [1.2.0] - 2024-03-28
+## [1.2.1] - 2024-03-28
 
 ### Added
 
@@ -13,6 +13,10 @@
 - Refactored the database schema to support new features.
 - Improved input validation and sanitization to prevent security vulnerabilities.
 - Enhanced error handling and logging mechanisms.
+- Instead of directly assigning the $emailBody to the Body property of the PHPMailer instance, we now use the msgHTML() method to set the email body.
+- The msgHTML() method automatically handles the encoding of special characters and neutralizes any potentially malicious content within the email body.
+- We no longer need to use htmlspecialchars() to encode the $resetLink because the msgHTML() method takes care of that for us.
+- By using the msgHTML() method, we add an extra layer of protection against potential injection attacks through the email body. The method ensures that any special characters or potentially malicious content is properly encoded and neutralized before sending the email.
 
 ### Fixed
 
