@@ -1,92 +1,96 @@
-# User Guide
+# Kynlos PHP User Management System API User Guide
 
-Welcome to the User Guide for the PHP User Management System. This guide will provide detailed instructions on how to use the system's features and functionalities.
+## Introduction
 
-## Table of Contents
+Welcome to Kynlos PHP User Management System User Guide! This guide will help you understand and utilize the features provided by Kynlos PHP User Management System. This API is designed to manage users, roles, permissions, and activity logs efficiently. It also includes authentication mechanisms such as username/password and GitHub OAuth, along with features like password reset, 2FA setup, and user invitation.
 
-1. [Getting Started](#getting-started)
-2. [Registration](#registration)
-3. [Login](#login)
-4. [Profile Management](#profile-management)
-5. [Password Reset](#password-reset)
-6. [Admin Panel](#admin-panel)
-7. [GitHub Login](#github-login)
+## Base URL
 
-## 1. Getting Started <a name="getting-started"></a>
+The base URL for accessing Kynlos PHP User Management System API is `https://www.yourdomain.com/api.php`.
 
-### Accessing the Application
+## Authentication
 
-To access the PHP User Management System, follow these steps:
+Kynlos PHP User Management System API supports two types of authentication:
 
-1. Open a web browser on your device.
-2. Enter the URL provided by your administrator into the address bar.
-3. Press Enter to navigate to the application.
+- Username/Password Authentication: Users can log in using their registered username and password.
+- GitHub OAuth Authentication: Users can also log in using their GitHub accounts.
 
-## 2. Registration <a name="registration"></a>
+## Endpoints and Functions
 
-### Creating a New Account
+Kynlos PHP User Management System provides the following endpoints and their corresponding functions:
 
-To register a new account with the system, use the following steps:
+### GET Endpoints
 
-1. Click on the "Register" link provided on the login page.
-2. You will be directed to the registration form.
-3. Fill in the required fields, including username, email, and password.
-4. Optionally, provide your first name and last name.
-5. Click the "Register" button to create your account.
+- `/api/users`: Retrieve a list of all users (requires `manage_users` permission).
+- `/api/users/{id}`: Retrieve user details by ID (requires `manage_users` permission).
+- `/api/dashboard`: Retrieve dashboard data (requires authentication).
+- `/api/admin`: Retrieve admin panel data (requires admin privileges).
+- `/api/profile`: Retrieve the profile of the authenticated user (requires authentication).
+- `/api/activity-logs`: Retrieve activity logs (requires admin privileges).
+- `/login`: Show login page.
+- `/register`: Show registration page.
+- `/admin`: Show admin dashboard (requires admin privileges).
+- `/forgot-password`: Show forgot password page.
+- `/reset-password`: Show reset password page.
+- `/setup-2fa`: Show 2FA setup page.
+- `/invite`: Show invite page.
+- `/api-docs`: Show API documentation.
+- `/github-callback`: Handle GitHub OAuth callback.
 
-## 3. Login <a name="login"></a>
+### POST Endpoints
 
-### Accessing Your Account
+- `/api/register`: Register a new user.
+- `/api/login`: Log in a user.
+- `/api/github-login`: Log in with GitHub OAuth.
+- `/api/update-profile`: Update user profile.
+- `/api/request-password-reset`: Request password reset.
+- `/api/reset-password`: Reset user password.
+- `/api/setup-2fa`: Set up 2FA.
+- `/api/invite-user`: Invite a user.
 
-To log in to your existing account, follow these steps:
+### PUT Endpoints
 
-1. Navigate to the login page by clicking on the "Login" link.
-2. Enter your username and password into the respective input fields.
-3. Click the "Login" button to authenticate and access your account.
+- `/api/users/{id}`: Update user details (requires `manage_users` permission).
 
-## 4. Profile Management <a name="profile-management"></a>
+### DELETE Endpoints
 
-### Viewing and Updating Profile Information
+- `/api/users/{id}`: Delete a user (requires `manage_users` permission).
 
-After logging in, you can manage your profile using the following steps:
+## Error Handling
 
-1. Navigate to the "Profile" page within the application.
-2. Here, you can view your current profile information, including username, email, first name, last name, and avatar.
-3. To update your profile, make changes to the desired fields.
-4. Click the "Save Changes" button to apply the updates to your profile.
+Kynlos PHP User Management System API returns appropriate HTTP status codes and error messages in case of any errors. Here are some common HTTP status codes:
 
-## 5. Password Reset <a name="password-reset"></a>
+- 200 OK: Successful request.
+- 400 Bad Request: Invalid request parameters.
+- 401 Unauthorized: Authentication required or invalid credentials.
+- 403 Forbidden: Access forbidden due to insufficient privileges.
+- 404 Not Found: Resource not found.
 
-### Resetting Your Password
+## Usage Examples
 
-If you forget your password and need to reset it, use the following steps:
+### Registering a New User
 
-1. Click on the "Forgot Password" link on the login page.
-2. Enter your registered email address into the provided field.
-3. A password reset link will be sent to your email address.
-4. Click on the link within the email to reset your password.
-5. Follow the on-screen instructions to set a new password for your account.
+```
+POST /api/register
+Request Body: {
+    "username": "john_doe",
+    "password": "password123",
+    "email": "john.doe@example.com"
+}
+```
 
-## 6. Admin Panel <a name="admin-panel"></a>
+### Logging In with Username/Password
 
-### Managing Users and Roles
+```
+POST /api/login
+Request Body: {
+    "username": "john_doe",
+    "password": "password123"
+}
+```
 
-If you have administrative privileges, you can access the admin panel to manage users and roles:
+### Retrieving User Details
 
-1. Log in to your account using your administrator credentials.
-2. Navigate to the admin panel using the provided link or menu option.
-3. Within the admin panel, you can perform various actions, including creating, editing, and deleting user accounts.
-4. You can also manage user roles and permissions to control access levels within the system.
-
-## 7. GitHub Login <a name="github-login"></a>
-
-### Logging in with GitHub
-
-To log in to the system using your GitHub account, follow these steps:
-
-1. Click on the "Login with GitHub" button on the login page.
-2. You will be redirected to GitHub's authentication page.
-3. Log in to your GitHub account if prompted.
-4. Authorize the PHP User Management System to access your GitHub account.
-5. Once authenticated, you will be redirected back to the system and logged in automatically.
-
+```
+GET /api/users/123
+```
